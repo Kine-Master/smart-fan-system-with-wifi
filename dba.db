@@ -1,0 +1,28 @@
+//DATABASE SCHEMA NAME: fan_system
+
+USE fan_system;
+
+CREATE TABLE sensor_data (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    temperature FLOAT NOT NULL,
+    distance FLOAT NOT NULL,
+    fan_status BOOLEAN NOT NULL,
+    oscillation_status BOOLEAN NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+CREATE TABLE settings (
+    id INT PRIMARY KEY DEFAULT 1,
+    speed1_threshold FLOAT NOT NULL DEFAULT 25.0,
+    speed2_threshold FLOAT NOT NULL DEFAULT 30.0,
+    speed3_threshold FLOAT NOT NULL DEFAULT 35.0,
+    distance_threshold FLOAT NOT NULL DEFAULT 10.0,
+    oscillation_status BOOLEAN NOT NULL DEFAULT 0
+);
+
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL
+);

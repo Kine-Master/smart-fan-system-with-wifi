@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fan Control Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Fan Control Dashboard</h1>
+
+        <div class="sensor-data">
+            <h2>Real-Time Sensor Data</h2>
+            <p><strong>Temperature:</strong> <span id="temperature">--</span> °C</p>
+            <p><strong>Distance:</strong> <span id="distance">--</span> cm</p>
+            <p><strong>Fan Status:</strong> <span id="fan_status">--</span></p>
+            <p><strong>Oscillation Status:</strong> <span id="oscillation_status">--</span></p>
+        </div>
+
+        <div class="history">
+            <h2>Usage History</h2>
+            <ul id="history-list"></ul>
+        </div>
+
+        <div class="controls">
+            <button id="toggle-oscillation">Toggle Oscillation</button>
+            <button id="go-to-settings">Go to Settings</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

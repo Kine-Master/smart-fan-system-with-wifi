@@ -1,0 +1,194 @@
+#include <ESP8266WiFi.h>
+#include <WebSocketsClient.h>
+#include <SoftwareSerial.h>
+#include <ArduinoJson.h>
+#include <ESP8266HTTPClient.h>
+
+// WiFi Credentials
+const char* ssid = "My Room";
+const char* password = "Skylink@12345";
+
+// WebSocket Server Config
+const char* ws_host = "192.168.68.126"; // Change to your backend IP
+const int ws_port = 3000; // Backend WebSocket Port
+
+// HTTP API URLs
+const char* settings_url = "http://192.168.68.126:3000/api/settings";
+const char* oscillation_url = "http://192.168.68.126:3000/api/oscillation";
+
+// WebSocket Client
+WebSocketsClient webSocket;
+
+// Software Serial for Arduino communication
+SoftwareSerial arduinoSerial(D6, D5); // RX, TX (NodeMCU pins)
+
+// Sensor variables
+float temperature = 0.0, distance = 0.0;
+bool fanStatus = false, oscillationStatus = false;
+float speed1Threshold, speed2Threshold, speed3Threshold, distanceThreshold;
+
+// WebSocket Event Handler
+void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
+    switch (type) {
+        case WStype_CONNECTED:
+            Serial.println("✅ WebSocket Connected!");
+            break;
+        case WStype_DISCONNECTED:
+            Serial.println("❌ WebSocket Disconnected! Reconnecting...");
+            webSocket.begin(ws_host, ws_port, "/");
+            break;
+        case WStype_TEXT:
+            Serial.printf("📩 WebSocket Received: %s\n", payload);
+            break;
+    }
+}
+
+// Read Data from Arduino
+void readFromArduino() {
+    if (arduinoSerial.available()) {
+        String data = arduinoSerial.readStringUntil('\n');
+        data.trim();
+
+        if (data.length() > 0) {
+            char buf[100];
+            data.toCharArray(buf, 100);
+            
+            // Split data using strtok
+            char* token = strtok(buf, ",");
+            if (token != NULL) temperature = atof(token);
+
+            token = strtok(NULL, ",");
+            if (token != NULL) distance = atof(token);
+
+            token = strtok(NULL, ",");
+            if (token != NULL) fanStatus = atoi(token);
+
+            token = strtok(NULL, ",");
+            if (token != NULL) oscillationStatus = atoi(token); // Get oscillation status
+        }
+    }
+}
+
+// Send Sensor Data via WebSocket
+void sendSensorData() {
+    StaticJsonDocument<256> jsonDoc;
+    jsonDoc["type"] = "sensor_update";
+    jsonDoc["temperature"] = temperature;
+    jsonDoc["distance"] = distance;
+    jsonDoc["fan_status"] = fanStatus;
+    jsonDoc["oscillation_status"] = oscillationStatus;
+
+    String message;
+    serializeJson(jsonDoc, message);
+    
+    if (webSocket.isConnected()) {
+        webSocket.sendTXT(message);
+    } else {
+        Serial.println("❌ WebSocket not connected! Retrying...");
+        webSocket.begin(ws_host, ws_port, "/");
+    }
+}
+
+// Fetch Updated Thresholds via HTTP (For Authorized Users)
+void fetchThresholds() {
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("❌ WiFi disconnected! Skipping HTTP fetch.");
+        return;
+    }
+
+    WiFiClient client;
+    HTTPClient http;
+
+    Serial.println("📡 Fetching settings from backend...");
+    http.begin(client, settings_url);
+    int httpCode = http.GET();
+
+    if (httpCode == 200) {
+        String response = http.getString();
+        StaticJsonDocument<256> jsonDoc;
+        deserializeJson(jsonDoc, response);
+
+        JsonObject data = jsonDoc["data"];
+        speed1Threshold = data["speed1_threshold"];
+        speed2Threshold = data["speed2_threshold"];
+        speed3Threshold = data["speed3_threshold"];
+        distanceThreshold = data["distance_threshold"];
+        oscillationStatus = data["oscillation_status"];
+
+        // Send to Arduino
+        arduinoSerial.println("SET_TEMP1:" + String(speed1Threshold));
+        arduinoSerial.println("SET_TEMP2:" + String(speed2Threshold));
+        arduinoSerial.println("SET_TEMP3:" + String(speed3Threshold));
+        arduinoSerial.println("SET_DIST:" + String(distanceThreshold));
+        arduinoSerial.println("TOGGLE_OSC:" + String(oscillationStatus));
+    } else {
+        Serial.println("❌ Failed to fetch settings! HTTP Code: " + String(httpCode));
+    }
+    
+    http.end();
+}
+
+// Fetch Updated Oscillation Status (For All Users)
+void fetchOscillationStatus() {
+    if (WiFi.status() != WL_CONNECTED) return;
+
+    WiFiClient client;
+    HTTPClient http;
+
+    Serial.println("📡 Fetching oscillation status from backend...");
+    http.begin(client, oscillation_url);
+    int httpCode = http.GET();
+
+    if (httpCode == 200) {
+        String response = http.getString();
+        StaticJsonDocument<256> jsonDoc;
+        deserializeJson(jsonDoc, response);
+
+        oscillationStatus = jsonDoc["data"]["oscillation_status"];
+        arduinoSerial.println("TOGGLE_OSC:" + String(oscillationStatus));
+    } else {
+        Serial.println("❌ Failed to fetch oscillation status! HTTP Code: " + String(httpCode));
+    }
+    
+    http.end();
+}
+
+// Setup Function
+void setup() {
+    Serial.begin(115200);
+    arduinoSerial.begin(9600);
+
+    // Connect to WiFi
+    WiFi.begin(ssid, password);
+    Serial.print("🌐 Connecting to WiFi...");
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+    }
+    Serial.println("\n✅ Connected to WiFi!");
+
+    // Initialize WebSocket
+    webSocket.begin(ws_host, ws_port, "/");
+    webSocket.onEvent(webSocketEvent);
+    
+    // Fetch Initial Data
+    fetchThresholds();
+    fetchOscillationStatus();
+}
+
+// Main Loop
+void loop() {
+    webSocket.loop();
+    readFromArduino();
+    sendSensorData();
+    
+    // Fetch settings & oscillation status every 10 seconds
+    static unsigned long lastFetchTime = 0;
+    if (millis() - lastFetchTime > 10000) {
+        fetchThresholds(); // For authorized users
+        fetchOscillationStatus(); // For all users
+        lastFetchTime = millis();
+    }
+
+    delay(2000); // Send data every 2 seconds
+}

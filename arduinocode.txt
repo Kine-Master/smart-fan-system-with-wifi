@@ -1,0 +1,187 @@
+#include <SoftwareSerial.h>
+#include <EEPROM.h>
+
+// Pin Definitions
+const int lm35Pin = A0;
+const int echoPin = 10;
+const int trigPin = 9;
+const int relayOscillateFan = 8;
+const int relaySpeed1 = 5;
+const int relaySpeed2 = 6;
+const int relaySpeed3 = 7;
+
+// Software Serial for NodeMCU Communication
+SoftwareSerial espSerial(2, 3); // RX, TX (Arduino pins)
+
+// Variables
+float temperature = 0.0, distance = 0.0;
+bool fanStatus = false, oscillationStatus = false;
+
+// Thresholds (modifiable remotely, stored in EEPROM)
+float speed1Threshold, speed2Threshold, speed3Threshold, distanceThreshold;
+
+// Hysteresis margin
+const float hysteresisMargin = 1.0;
+
+// EEPROM Storage Addresses
+const int addr_speed1 = 0;
+const int addr_speed2 = 4;
+const int addr_speed3 = 8;
+const int addr_distance = 12;
+const int addr_oscillation = 16;
+
+// Read float from EEPROM with a default value
+float readFloatFromEEPROM(int addr, float defaultValue) {
+    float value;
+    EEPROM.get(addr, value);
+    // If the value is invalid (NaN or uninitialized), return the default value
+    return (isnan(value) || value == 0.0) ? defaultValue : value;
+}
+
+// Write float to EEPROM
+void writeFloatToEEPROM(int addr, float value) {
+    EEPROM.put(addr, value);
+    delay(10);
+}
+
+// Setup function
+void setup() {
+    Serial.begin(9600);
+    espSerial.begin(115200);
+
+    // Load thresholds from EEPROM or use default values
+    speed1Threshold = readFloatFromEEPROM(addr_speed1, 25.0);  // Default value for speed1Threshold
+    speed2Threshold = readFloatFromEEPROM(addr_speed2, 30.0);  // Default value for speed2Threshold
+    speed3Threshold = readFloatFromEEPROM(addr_speed3, 35.0);  // Default value for speed3Threshold
+    distanceThreshold = readFloatFromEEPROM(addr_distance, 10.0);  // Default value for distanceThreshold
+    oscillationStatus = EEPROM.read(addr_oscillation);
+
+    // Configure Pin Modes
+    pinMode(echoPin, INPUT);
+    pinMode(trigPin, OUTPUT);
+    pinMode(relaySpeed1, OUTPUT);
+    pinMode(relaySpeed2, OUTPUT);
+    pinMode(relaySpeed3, OUTPUT);
+    pinMode(relayOscillateFan, OUTPUT);
+
+    turnOffFan();
+    digitalWrite(relayOscillateFan, oscillationStatus ? HIGH : LOW);
+
+    Serial.println("System Initialized");
+}
+
+// Main loop
+void loop() {
+    temperature = readTemperature();
+    distance = getDistance();
+    controlFan();
+
+    // Send sensor data and fan status to NodeMCU
+    sendToESP();
+
+    // Receive updates from ESP8266
+    receiveFromESP();
+
+    delay(1000);
+}
+
+// Turn off the fan
+void turnOffFan() {
+    digitalWrite(relaySpeed1, LOW);
+    digitalWrite(relaySpeed2, LOW);
+    digitalWrite(relaySpeed3, LOW);
+    fanStatus = false;
+}
+
+// Read temperature
+float readTemperature() {
+    int total = 0;
+    for (int i = 0; i < 10; i++) {
+        total += analogRead(lm35Pin);
+        delay(10);
+    }
+    return (total / 10) * (5.0 / 1024.0) * 100.0;
+}
+
+// Measure distance using HC-SR04
+float getDistance() {
+    digitalWrite(trigPin, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trigPin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trigPin, LOW);
+
+    long duration = pulseIn(echoPin, HIGH);
+    return (duration / 2.0) * 0.0344;
+}
+
+// Set fan speed
+void setFanSpeed(int speed) {
+    turnOffFan();
+    if (speed == 1) digitalWrite(relaySpeed1, HIGH);
+    else if (speed == 2) digitalWrite(relaySpeed2, HIGH);
+    else if (speed == 3) digitalWrite(relaySpeed3, HIGH);
+    fanStatus = true;
+}
+
+// Control the fan based on temperature & distance
+void controlFan() {
+    if (temperature >= (speed1Threshold + hysteresisMargin) && distance < distanceThreshold) {
+        setFanSpeed(1);
+    } else if (temperature >= (speed2Threshold + hysteresisMargin) && temperature < (speed3Threshold + hysteresisMargin) && distance < distanceThreshold) {
+        setFanSpeed(2);
+    } else if (temperature >= (speed3Threshold + hysteresisMargin) && distance < distanceThreshold) {
+        setFanSpeed(3);
+    } else {
+        turnOffFan();
+    }
+}
+
+// Send sensor data to NodeMCU
+void sendToESP() {
+    espSerial.print(temperature);
+    espSerial.print(",");
+    espSerial.print(distance);
+    espSerial.print(",");
+    espSerial.print(fanStatus ? "1" : "0");
+    espSerial.print(",");
+    espSerial.print(oscillationStatus ? "1" : "0");
+    espSerial.print(",");
+    espSerial.print(speed1Threshold);
+    espSerial.print(",");
+    espSerial.print(speed2Threshold);
+    espSerial.print(",");
+    espSerial.print(speed3Threshold);
+    espSerial.print(",");
+    espSerial.println(distanceThreshold);
+}
+
+// Receive threshold updates & oscillation toggle from NodeMCU
+void receiveFromESP() {
+    if (espSerial.available()) {
+        String input = espSerial.readStringUntil('\n');
+        input.trim();
+
+        if (input.startsWith("SET_TEMP1:")) {
+            speed1Threshold = input.substring(10).toFloat();
+            writeFloatToEEPROM(addr_speed1, speed1Threshold);
+        } else if (input.startsWith("SET_TEMP2:")) {
+            speed2Threshold = input.substring(10).toFloat();
+            writeFloatToEEPROM(addr_speed2, speed2Threshold);
+        } else if (input.startsWith("SET_TEMP3:")) {
+            speed3Threshold = input.substring(10).toFloat();
+            writeFloatToEEPROM(addr_speed3, speed3Threshold);
+        } else if (input.startsWith("SET_DIST:")) {
+            distanceThreshold = input.substring(9).toFloat();
+            writeFloatToEEPROM(addr_distance, distanceThreshold);
+        } else if (input.startsWith("TOGGLE_OSC:")) {
+            oscillationStatus = !oscillationStatus;
+            EEPROM.write(addr_oscillation, oscillationStatus);
+            EEPROM.commit();
+            digitalWrite(relayOscillateFan, oscillationStatus ? HIGH : LOW);
+        }
+
+        // Send confirmation back to ESP8266
+        espSerial.println("ACK");
+    }
+}

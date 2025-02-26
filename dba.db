@@ -7,7 +7,6 @@ CREATE TABLE sensor_data (
     temperature FLOAT NOT NULL,
     distance FLOAT NOT NULL,
     fan_status BOOLEAN NOT NULL,
-    oscillation_status BOOLEAN NOT NULL,
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -18,7 +17,6 @@ CREATE TABLE settings (
     speed2_threshold FLOAT NOT NULL DEFAULT 30.0,
     speed3_threshold FLOAT NOT NULL DEFAULT 35.0,
     distance_threshold FLOAT NOT NULL DEFAULT 10.0,
-    oscillation_status BOOLEAN NOT NULL DEFAULT 0
 );
 
 CREATE TABLE users (

@@ -20,7 +20,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     document.getElementById("speed2-threshold").value = data.data.speed2_threshold;
                     document.getElementById("speed3-threshold").value = data.data.speed3_threshold;
                     document.getElementById("distance-threshold").value = data.data.distance_threshold;
-                    document.getElementById("oscillation-status").value = data.data.oscillation_status;
                 }
             })
             .catch(error => console.error("Error fetching settings:", error));
@@ -36,7 +35,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const speed2_threshold = document.getElementById("speed2-threshold").value;
         const speed3_threshold = document.getElementById("speed3-threshold").value;
         const distance_threshold = document.getElementById("distance-threshold").value;
-        const oscillation_status = document.getElementById("oscillation-status").value;
 
         fetch("http://localhost:3000/update-settings", {
             method: "POST",
@@ -44,7 +42,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${token}` // Include token for authentication
             },
-            body: JSON.stringify({ speed1_threshold, speed2_threshold, speed3_threshold, distance_threshold, oscillation_status })
+            body: JSON.stringify({ speed1_threshold, speed2_threshold, speed3_threshold, distance_threshold})
         })
         .then(response => response.json())
         .then(data => {

@@ -2,9 +2,7 @@ document.addEventListener("DOMContentLoaded", function() {
     const temperatureElement = document.getElementById("temperature");
     const distanceElement = document.getElementById("distance");
     const fanStatusElement = document.getElementById("fan_status");
-    const oscillationStatusElement = document.getElementById("oscillation_status");
     const historyList = document.getElementById("history-list");
-    const toggleOscillationButton = document.getElementById("toggle-oscillation");
     const goToSettingsButton = document.getElementById("go-to-settings");
     const socket = new WebSocket("ws://localhost:3000");
     
@@ -15,7 +13,6 @@ document.addEventListener("DOMContentLoaded", function() {
         document.getElementById("temperature").textContent = data.temperature;
         document.getElementById("distance").textContent = data.distance;
         document.getElementById("fan_status").textContent = data.fan_status ? "On" : "Off";
-        document.getElementById("oscillation_status").textContent = data.oscillation_status ? "Enabled" : "Disabled";
     }
     };
 
@@ -29,7 +26,6 @@ document.addEventListener("DOMContentLoaded", function() {
             temperatureElement.textContent = `${data.temperature}°C`;
             distanceElement.textContent = `${data.distance} cm`;
             fanStatusElement.textContent = data.fan_status ? "On" : "Off";
-            oscillationStatusElement.textContent = data.oscillation_status ? "Enabled" : "Disabled";
             
             // ✅ Also update usage history in real time
             fetchUsageHistory();
@@ -45,7 +41,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     historyList.innerHTML = ""; // Clear previous history
                     data.history.forEach(entry => {
                         const li = document.createElement("li");
-                        li.textContent = `Temp: ${entry.temperature}°C, Distance: ${entry.distance}cm, Fan: ${entry.fan_status ? "On" : "Off"}, Oscillation: ${entry.oscillation_status ? "Enabled" : "Disabled"}`;
+                        li.textContent = `Temp: ${entry.temperature}°C, Distance: ${entry.distance}cm, Fan: ${entry.fan_status ? "On" : "Off"}`;
                         historyList.appendChild(li);
                     });
                 }
@@ -53,19 +49,6 @@ document.addEventListener("DOMContentLoaded", function() {
             .catch(error => console.error("Error fetching usage history:", error));
     }
 
-    // Toggle oscillation function
-    toggleOscillationButton.addEventListener("click", () => {
-        fetch("http://localhost:3000/update-oscillation", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ oscillation_status: oscillationStatusElement.textContent === "Enabled" ? 0 : 1 })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) fetchSensorData(); // Refresh status
-        })
-        .catch(error => console.error("Error toggling oscillation:", error));
-    });
 
     goToSettingsButton.addEventListener("click", () => {
         const token = localStorage.getItem("authToken");

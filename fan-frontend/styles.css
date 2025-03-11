@@ -1,98 +1,140 @@
-/* General Page Styling */
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
+/* 🌎 Global Reset */
+* {
+    box-sizing: border-box;
     margin: 0;
     padding: 0;
+    font-family: 'Poppins', sans-serif;
+}
+
+/* 🎨 Background Styling */
+body {
+    background: linear-gradient(135deg, #e3f2fd, #ffffff);
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
-}
-
-/* Container for Forms and Content */
-.container, .login-container, .register-container, .settings-container {
-    background: white;
     padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
-    width: 300px;
+}
+
+/* 📦 Container Styling */
+.container, .login-container, .register-container, .settings-container {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 35px;
+    width: 360px;
     text-align: center;
+    box-shadow: 0px 10px 25px rgba(0, 0, 0, 0.15);
+    transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out;
 }
 
-/* Headings */
+.container:hover, .login-container:hover, .register-container:hover, .settings-container:hover {
+    transform: scale(1.03);
+    box-shadow: 0px 12px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* 📝 Headings */
 h2 {
-    margin-bottom: 20px;
+    font-size: 24px;
     color: #333;
+    margin-bottom: 15px;
+    font-weight: 600;
 }
 
-/* Form Styling */
+/* 📝 Form Styling */
 form {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 14px;
 }
 
+/* 🏷️ Labels */
 label {
-    font-weight: bold;
+    font-weight: 500;
     text-align: left;
     display: block;
+    font-size: 14px;
+    color: #555;
 }
 
+/* 🖊️ Input Fields */
 input, select {
     width: 100%;
-    padding: 8px;
-    margin-top: 4px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    padding: 12px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    background: #f9f9f9;
+    outline: none;
 }
 
+input::placeholder {
+    color: #999;
+}
+
+input:focus, select:focus {
+    border-color: #007BFF;
+    background: #ffffff;
+    box-shadow: 0px 0px 8px rgba(0, 123, 255, 0.3);
+}
+
+/* 🚀 Buttons */
 button {
-    background-color: #007BFF;
+    background: linear-gradient(135deg, #007BFF, #0056b3);
     color: white;
-    padding: 10px;
+    padding: 12px;
     border: none;
-    border-radius: 4px;
+    border-radius: 8px;
     cursor: pointer;
     font-size: 16px;
-    margin-top: 10px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0px 5px 15px rgba(0, 123, 255, 0.3);
 }
 
 button:hover {
-    background-color: #0056b3;
+    background: linear-gradient(135deg, #0056b3, #003f80);
+    transform: translateY(-2px);
 }
 
-/* Error Messages */
+/* ❌ Error Messages */
 .error-message {
     color: red;
     font-size: 14px;
-    margin-top: 10px;
+    margin-top: 8px;
 }
 
-/* Links */
+/* 🔗 Links */
 a {
     color: #007BFF;
     text-decoration: none;
     font-weight: bold;
+    transition: color 0.3s ease;
 }
 
 a:hover {
     text-decoration: underline;
+    color: #0056b3;
 }
 
-/* Back and Logout Buttons */
+/* 🔙 Back & Logout Buttons */
 #back-to-main, #logout {
-    background-color: #dc3545;
-    margin-top: 10px;
+    background: linear-gradient(135deg, #dc3545, #a81c30);
+    margin-top: 12px;
+    font-size: 15px;
+    transition: all 0.3s ease;
+    box-shadow: 0px 5px 15px rgba(220, 53, 69, 0.3);
 }
 
 #back-to-main:hover, #logout:hover {
-    background-color: #b02a37;
+    background: linear-gradient(135deg, #b02a37, #850d20);
+    transform: translateY(-2px);
 }
 
-/* Responsive Design */
-@media (max-width: 400px) {
+/* 📱 Responsive Design */
+@media (max-width: 450px) {
     .container, .login-container, .register-container, .settings-container {
-        width: 90%;
+        width: 95%;
+        padding: 30px;
     }
 }

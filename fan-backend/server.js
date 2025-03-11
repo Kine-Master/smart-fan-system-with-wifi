@@ -124,6 +124,23 @@ app.get("/api/usage-history", (req, res) => {
     });
 });
 
+// API to get stored settings
+app.get("/api/settings", (req, res) => {
+    console.log("⚙️ Fetching stored settings...");
+    db.query("SELECT * FROM settings WHERE id=1", (err, results) => {
+        if (err) {
+            console.error("❌ Failed to fetch settings:", err);
+            return res.status(500).json({ success: false, error: "Failed to fetch settings" });
+        }
+        if (results.length === 0) {
+            console.warn("⚠️ No settings found in database!");
+            return res.status(404).json({ success: false, error: "No settings found" });
+        }
+        console.log("✅ Settings Retrieved:", results[0]);
+        res.json({ success: true, settings: results[0] });
+    });
+});
+
 // API to update settings
 app.post("/update-settings", (req, res) => {
     console.log("⚙️ Updating settings...");

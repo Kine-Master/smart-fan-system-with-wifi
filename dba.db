@@ -1,7 +1,6 @@
-//DATABASE SCHEMA NAME: fan_system
-
 USE fan_system;
 
+-- Sensor Data Table
 CREATE TABLE sensor_data (
     id INT AUTO_INCREMENT PRIMARY KEY,
     temperature FLOAT NOT NULL,
@@ -10,17 +9,28 @@ CREATE TABLE sensor_data (
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-
+-- Settings Table (Fixed Syntax)
 CREATE TABLE settings (
     id INT PRIMARY KEY DEFAULT 1,
     speed1_threshold FLOAT NOT NULL DEFAULT 25.0,
     speed2_threshold FLOAT NOT NULL DEFAULT 30.0,
     speed3_threshold FLOAT NOT NULL DEFAULT 35.0,
-    distance_threshold FLOAT NOT NULL DEFAULT 10.0,
+    distance_threshold FLOAT NOT NULL DEFAULT 10.0
 );
 
+-- Users Table
 CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL
+    
 );
+
+-- ✅ Insert default settings if not exists
+INSERT INTO settings (id, speed1_threshold, speed2_threshold, speed3_threshold, distance_threshold)
+VALUES (1, 25.0, 30.0, 35.0, 10.0)
+ON DUPLICATE KEY UPDATE
+    speed1_threshold = VALUES(speed1_threshold),
+    speed2_threshold = VALUES(speed2_threshold),
+    speed3_threshold = VALUES(speed3_threshold),
+    distance_threshold = VALUES(distance_threshold);

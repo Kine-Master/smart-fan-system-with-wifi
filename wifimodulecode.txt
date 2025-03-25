@@ -13,7 +13,7 @@ const char* ws_host = "192.168.173.120"; // Change to your backend IP
 const int ws_port = 3000; // Backend WebSocket Port
 
 // HTTP API URLs
-const char* settings_url = "http://192.168.173.120:3000/update-settings";
+const char* settings_url = "http://192.168.173.120:3000/api/settings";
 
 // WebSocket Client
 WebSocketsClient webSocket;

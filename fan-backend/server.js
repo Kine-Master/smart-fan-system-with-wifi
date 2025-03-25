@@ -6,8 +6,6 @@ const express = require('express');
 const mysql = require('mysql2');
 const bodyParser = require('body-parser');
 const http = require('http');
-const { Server } = require('socket.io');
-const WebSocket = require('ws');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -15,10 +13,6 @@ const cors = require('cors');
 // Initialize Express and HTTP server
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
-});
-const wss = new WebSocket.Server({ server });
 
 // Middleware
 app.use(bodyParser.json());
@@ -41,6 +35,7 @@ const db = mysql.createConnection({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME
 });
+
 db.connect(err => {
     if (err) console.error("❌ Database connection error:", err);
     else console.log("✅ Connected to MySQL");
@@ -60,20 +55,9 @@ function maintainFIFO() {
     });
 }
 
-// Function to broadcast data to WebSocket clients
-function broadcast(data) {
-    console.log("📢 Broadcasting data to WebSocket clients:", data);
-    wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify(data));
-        }
-    });
-}
-
-// API to receive data from ESP8266 and broadcast updates
+// API to receive data from ESP8266
 app.post("/receive-data", (req, res) => {
     console.log("📡 Incoming request to /receive-data");
-    console.log("🔍 Request Headers:", req.headers);
     console.log("🔍 Request Body:", req.body);
 
     const { temperature, distance, fan_status } = req.body;
@@ -85,24 +69,19 @@ app.post("/receive-data", (req, res) => {
 
     console.log(`✅ Received Data -> Temp: ${temperature}, Distance: ${distance}, Fan: ${fan_status}`);
 
-    db.query("INSERT INTO sensor_data (temperature, distance, fan_status) VALUES (?, ?, ?)", 
-        [temperature, distance, fan_status], (err) => {
+    db.query(
+        "INSERT INTO sensor_data (temperature, distance, fan_status) VALUES (?, ?, ?)",
+        [temperature, distance, fan_status],
+        (err) => {
             if (err) return console.error("❌ DB Insert Error:", err);
-            maintainFIFO();
-
-            broadcast({
-                type: "sensor_update",
-                temperature,
-                distance,
-                fan_status
-            });
+            maintainFIFO(); // Maintain FIFO without WebSocket
         }
     );
+
     res.json({ success: true, message: "Data received successfully" });
 });
 
-
-// API to get latest sensor data
+// API to get the latest sensor data
 app.get("/api/latest-sensor-data", (req, res) => {
     console.log("🔍 Fetching latest sensor data...");
     db.query("SELECT * FROM sensor_data ORDER BY id DESC LIMIT 1", (err, results) => {
@@ -110,7 +89,6 @@ app.get("/api/latest-sensor-data", (req, res) => {
             console.error("❌ Failed to fetch data:", err);
             return res.status(500).json({ success: false, error: "Failed to fetch data" });
         }
-        console.log("✅ Latest Sensor Data:", results[0]);
         res.json({ success: true, data: results[0] });
     });
 });
@@ -136,7 +114,6 @@ app.get("/api/settings", (req, res) => {
             console.warn("⚠️ No settings found in database!");
             return res.status(404).json({ success: false, error: "No settings found" });
         }
-        console.log("✅ Settings Retrieved:", results[0]);
         res.json({ success: true, settings: results[0] });
     });
 });
@@ -145,12 +122,12 @@ app.get("/api/settings", (req, res) => {
 app.post("/update-settings", (req, res) => {
     console.log("⚙️ Updating settings...");
     const { speed1_threshold, speed2_threshold, speed3_threshold, distance_threshold } = req.body;
-    
-    db.query("UPDATE settings SET speed1_threshold=?, speed2_threshold=?, speed3_threshold=?, distance_threshold=? WHERE id=1", 
-        [speed1_threshold, speed2_threshold, speed3_threshold, distance_threshold], (err) => {
+
+    db.query(
+        "UPDATE settings SET speed1_threshold=?, speed2_threshold=?, speed3_threshold=?, distance_threshold=? WHERE id=1",
+        [speed1_threshold, speed2_threshold, speed3_threshold, distance_threshold],
+        (err) => {
             if (err) return res.status(500).json({ success: false, error: "Failed to update settings" });
-            console.log("✅ Settings updated successfully");
-            broadcast({ type: "settings_update", speed1_threshold, speed2_threshold, speed3_threshold, distance_threshold });
             res.json({ success: true, message: "Settings updated successfully" });
         }
     );
@@ -189,7 +166,6 @@ app.post('/login', (req, res) => {
         bcrypt.compare(password, results[0].password, (compareErr, isMatch) => {
             if (isMatch) {
                 const token = jwt.sign({ id: results[0].id, username }, process.env.JWT_SECRET, { expiresIn: '1h' });
-                console.log("✅ User logged in successfully");
                 res.json({ success: true, token });
             } else {
                 res.status(401).json({ success: false, error: "Invalid credentials" });
@@ -199,6 +175,6 @@ app.post('/login', (req, res) => {
 });
 
 // Start Server
-server.listen(process.env.PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${process.env.PORT}`);
+server.listen(process.env.PORT || 3000, '0.0.0.0', () => {
+    console.log(`🚀 Server running on http://0.0.0.0:${process.env.PORT || 3000}`);
 });

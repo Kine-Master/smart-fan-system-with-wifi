@@ -15,6 +15,7 @@ SoftwareSerial espSerial(2, 3); // RX, TX (Arduino pins)
 // Variables
 float temperature = 0.0, distance = 0.0;
 bool fanStatus = false;
+int previousSpeed = 0;
 
 // Thresholds (modifiable remotely, stored in EEPROM)
 float speed1Threshold, speed2Threshold, speed3Threshold, distanceThreshold;
@@ -47,10 +48,10 @@ void setup() {
     espSerial.begin(9600);
 
     // Load thresholds from EEPROM or use default values
-    speed1Threshold = readFloatFromEEPROM(addr_speed1, 28.0);
-    speed2Threshold = readFloatFromEEPROM(addr_speed2, 32.0);
-    speed3Threshold = readFloatFromEEPROM(addr_speed3, 36.0);
-    distanceThreshold = readFloatFromEEPROM(addr_distance, 50.0);
+    speed1Threshold = readFloatFromEEPROM(addr_speed1, 10.0);
+    speed2Threshold = readFloatFromEEPROM(addr_speed2, 20.0);
+    speed3Threshold = readFloatFromEEPROM(addr_speed3, 30.0);
+    distanceThreshold = readFloatFromEEPROM(addr_distance, 900.0);
 
     // Configure Pin Modes
     pinMode(echoPin, INPUT);
@@ -59,8 +60,11 @@ void setup() {
     pinMode(relaySpeed2, OUTPUT);
     pinMode(relaySpeed3, OUTPUT);
 
-    turnOffFan();
-    
+    // Ensure the fan is off initially
+    digitalWrite(relaySpeed1, HIGH);
+    digitalWrite(relaySpeed2, HIGH);
+    digitalWrite(relaySpeed3, HIGH);
+
     Serial.println("System Initialized");
     Serial.println("Initial Thresholds:");
     Serial.print("Speed1: "); Serial.println(speed1Threshold);
@@ -70,25 +74,33 @@ void setup() {
 }
 
 // Main loop
+unsigned long lastPrintTime = 0;
+const int printInterval = 2000; // Print every 2 seconds
+
 void loop() {
     temperature = readTemperature();
     distance = getDistance();
-    
-    Serial.print("Temp: "); Serial.print(temperature);
-    Serial.print(" °C | Distance: "); Serial.print(distance);
-    Serial.println(" cm");
+
+    if (millis() - lastPrintTime >= printInterval) {
+        // Serial.print("Temp: ");
+        // Serial.print(temperature);
+        // Serial.print(" °C | Distance: ");
+        // Serial.print(distance);
+        // Serial.println(" cm");
+        lastPrintTime = millis();
+    }
 
     controlFan();
     sendToESP();
     receiveFromESP();
-    delay(1000);
+    delay(100);
 }
 
 // Turn off the fan
 void turnOffFan() {
-    digitalWrite(relaySpeed1, LOW);
-    digitalWrite(relaySpeed2, LOW);
-    digitalWrite(relaySpeed3, LOW);
+    digitalWrite(relaySpeed1, HIGH);
+    digitalWrite(relaySpeed2, HIGH);
+    digitalWrite(relaySpeed3, HIGH);
     fanStatus = false;
 }
 
@@ -96,7 +108,7 @@ void turnOffFan() {
 float readTemperature() {
     int sensorValue = analogRead(lm35Pin);
     float temp = (sensorValue * (5.0 / 1024.0)) * 100.0;
-    Serial.print("Raw Temp Reading: "); Serial.println(temp);
+    // Serial.print("Raw Temp Reading: "); Serial.println(temp);
     return temp;
 }
 
@@ -108,54 +120,123 @@ float getDistance() {
     delayMicroseconds(10);
     digitalWrite(trigPin, LOW);
 
-    long duration = pulseIn(echoPin, HIGH, 25000);
-    float dist = (duration / 2.0) * 0.0344;
-    
-    if (dist == 0) {
-        Serial.println("Ultrasonic Sensor Timeout - No Echo");
-        return 999; 
+    long duration = pulseIn(echoPin, HIGH, 25000);  // 25ms timeout
+    if (duration == 0) {
+        // Serial.println("Ultrasonic Sensor Timeout - No Echo");
+        return distance;  // Return previous valid distance
     }
 
-    Serial.print("Raw Distance: "); Serial.println(dist);
+    float dist = (duration / 2.0) * 0.0344;
+
+    if (dist == 0 || dist > 400) {
+        // Serial.println("Invalid Distance Reading");
+        return distance;  // Return last valid distance
+    }
+
+    // Serial.print("Raw Distance: ");
+    // Serial.println(dist);
     return dist;
 }
+
 
 // Set fan speed
 void setFanSpeed(int speed) {
     static int lastSpeed = 0;
+    static unsigned long lastSpeedChangeTime = 0;
+    const int speedChangeDelay = 1000;  // 1-second delay between speed changes
 
+    // Prevent unnecessary relay switching if the speed is the same
     if (speed == lastSpeed) return;
-    
-    turnOffFan();
-    
-    switch (speed) {
-        case 1: digitalWrite(relaySpeed1, HIGH); Serial.println("Fan Speed: 1"); break;
-        case 2: digitalWrite(relaySpeed2, HIGH); Serial.println("Fan Speed: 2"); break;
-        case 3: digitalWrite(relaySpeed3, HIGH); Serial.println("Fan Speed: 3"); break;
-        default: Serial.println("Fan Off"); break;
+
+    // Apply delay between speed changes to avoid erratic behavior
+    if (millis() - lastSpeedChangeTime < speedChangeDelay) {
+        return;  // Skip if delay period is not over
     }
 
+    // === Turn off all relays before switching ===
+    digitalWrite(relaySpeed1, HIGH);  // Turn OFF Speed 1
+    digitalWrite(relaySpeed2, HIGH);  // Turn OFF Speed 2
+    digitalWrite(relaySpeed3, HIGH);  // Turn OFF Speed 3
+
+    // Short delay to allow relay to settle before changing speed
+    delay(200);  // 200 ms delay to prevent overlapping or chatter
+
+    // === Switch to the desired speed ===
+    switch (speed) {
+        case 1:
+            digitalWrite(relaySpeed1, LOW);   // Turn ON Speed 1
+            // Serial.println("Fan Speed: 1");
+            break;
+        case 2:
+            digitalWrite(relaySpeed2, LOW);   // Turn ON Speed 2
+            // Serial.println("Fan Speed: 2");
+            break;
+        case 3:
+            digitalWrite(relaySpeed3, LOW);   // Turn ON Speed 3
+            // Serial.println("Fan Speed: 3");
+            break;
+        default:
+            // Serial.println("Fan Off");
+            break;
+    }
+
+    // Update fan status and record the time of the last speed change
     fanStatus = (speed > 0);
     lastSpeed = speed;
+    lastSpeedChangeTime = millis();  // Save the time of the last speed change
 }
+
 
 void controlFan() {
-    if (distance >= distanceThreshold) {
-        setFanSpeed(0);
-        Serial.println("Fan turned off due to distance threshold");
+    static bool distanceExceeded = false;
+
+    // Apply hysteresis to distance check
+    if (distance >= (distanceThreshold + hysteresisMargin)) {
+        if (!distanceExceeded) {
+            setFanSpeed(0);
+            // Serial.println("Fan turned off due to distance threshold");
+            distanceExceeded = true;
+        }
         return;
+    } 
+    else if (distance <= (distanceThreshold - hysteresisMargin)) {
+        distanceExceeded = false;
     }
 
-    int targetSpeed = (temperature >= (speed3Threshold + hysteresisMargin)) ? 3 :
-                      (temperature >= (speed2Threshold + hysteresisMargin)) ? 2 :
-                      (temperature >= (speed1Threshold + hysteresisMargin)) ? 1 : 0;
+    int targetSpeed = 0;  // Default to fan off
 
-    setFanSpeed(targetSpeed);
+    // Increase Speed Logic
+    if (temperature >= (speed3Threshold + hysteresisMargin)) {
+        targetSpeed = 3;
+    } 
+    else if (temperature >= (speed2Threshold + hysteresisMargin)) {
+        targetSpeed = 2;
+    } 
+    else if (temperature >= (speed1Threshold + hysteresisMargin)) {
+        targetSpeed = 1;
+    } 
+    // Decrease Speed Logic with Hysteresis
+    else if (temperature < (speed3Threshold - hysteresisMargin) && previousSpeed == 3) {
+        targetSpeed = 2;
+    } 
+    else if (temperature < (speed2Threshold - hysteresisMargin) && previousSpeed == 2) {
+        targetSpeed = 1;
+    } 
+    else if (temperature < (speed1Threshold - hysteresisMargin) && previousSpeed == 1) {
+        targetSpeed = 0;
+    }
+
+    // Update only if the speed changes
+    if (targetSpeed != previousSpeed) {
+        setFanSpeed(targetSpeed);
+        previousSpeed = targetSpeed;
+    }
 }
+
 
 // Send sensor data to NodeMCU
 void sendToESP() {
-    Serial.println("Sending data to ESP8266...");
+    // Serial.println("Sending data to ESP8266...");
     espSerial.print(temperature);
     espSerial.print(",");
     espSerial.print(distance);
@@ -169,7 +250,7 @@ void sendToESP() {
     espSerial.print(speed3Threshold);
     espSerial.print(",");
     espSerial.println(distanceThreshold);
-    Serial.println("Data sent.");
+    // Serial.println("Data sent.");
 }
 
 // Receive threshold updates from NodeMCU

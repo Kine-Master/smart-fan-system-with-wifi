@@ -1,0 +1,100 @@
+/* Settings Container */
+.settings-container {
+    max-width: 500px;
+    margin: 50px auto;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+/* Heading */
+.settings-container h2 {
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+    color: #0077cc;
+}
+
+/* Form Styles */
+form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+/* Label Styles */
+label {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #444;
+    text-align: left;
+    display: block;
+    margin-bottom: 5px;
+}
+
+/* Input Field Styles */
+input[type="number"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    font-size: 1rem;
+    transition: border 0.3s;
+}
+
+input[type="number"]:focus {
+    border-color: #0077cc;
+    outline: none;
+    box-shadow: 0 0 5px rgba(0, 119, 204, 0.3);
+}
+
+/* Button Styles */
+button {
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    background-color: #0077cc;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+button:hover {
+    background-color: #005fa3;
+}
+
+/* Secondary Buttons */
+#back-to-main, #logout {
+    background-color: #f44336;
+    margin-top: 10px;
+}
+
+#back-to-main:hover, #logout:hover {
+    background-color: #c2352b;
+}
+
+/* Error Message */
+.error-message {
+    color: #d9534f;
+    font-size: 0.95rem;
+    margin-top: 10px;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    .settings-container {
+        padding: 15px;
+    }
+
+    h2 {
+        font-size: 1.5rem;
+    }
+
+    button {
+        font-size: 0.9rem;
+    }
+}

@@ -1,22 +1,15 @@
 #include <ESP8266WiFi.h>
-#include <WebSocketsClient.h>
 #include <SoftwareSerial.h>
 #include <ArduinoJson.h>
 #include <ESP8266HTTPClient.h>
 
 // WiFi Credentials
-const char* ssid = "not_ur_hotspot";
-const char* password = "pogikotalaga";
-
-// WebSocket Server Config
-const char* ws_host = "192.168.173.120"; // Change to your backend IP
-const int ws_port = 3000; // Backend WebSocket Port
+const char* ssid = "KM";
+const char* password = "wifipassword";
 
 // HTTP API URLs
-const char* settings_url = "http://192.168.173.120:3000/api/settings";
-
-// WebSocket Client
-WebSocketsClient webSocket;
+String settings_url = "http://172.20.10.2:3000/api/settings";
+String senddata_url = "http://172.20.10.2:3000/receive-data";
 
 // Software Serial for Arduino communication
 SoftwareSerial arduinoSerial(D6, D5); // RX, TX (NodeMCU pins)
@@ -29,20 +22,6 @@ float speed1Threshold, speed2Threshold, speed3Threshold, distanceThreshold;
 // Built-in LED pin
 const int ledPin = LED_BUILTIN; // NodeMCU built-in LED (D0 / GPIO16)
 
-// WebSocket Event Handler
-void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
-    switch (type) {
-        case WStype_CONNECTED:
-            Serial.println("✅ WebSocket Connected!");
-            break;
-        case WStype_DISCONNECTED:
-            Serial.println("❌ WebSocket Disconnected! Retrying...");
-            break;
-        case WStype_TEXT:
-            Serial.printf("📩 WebSocket Received: %s\n", payload);
-            break;
-    }
-}
 
 // Read Data from Arduino
 void readFromArduino() {
@@ -82,8 +61,9 @@ void sendDataToServer() {
     WiFiClient client;
     HTTPClient http;
 
-    String serverURL = "http://192.168.173.120:3000/receive-data";
-    Serial.println("📡 Sending data to server: " + serverURL);
+
+    Serial.println("📡 Sending data to server: ");
+    Serial.println(senddata_url);
 
     StaticJsonDocument<256> jsonDoc;
     jsonDoc["temperature"] = temperature;
@@ -93,7 +73,7 @@ void sendDataToServer() {
     String requestBody;
     serializeJson(jsonDoc, requestBody);
 
-    http.begin(client, serverURL);
+    http.begin(client, senddata_url);
     http.addHeader("Content-Type", "application/json");
 
     int httpResponseCode = http.POST(requestBody);
@@ -123,30 +103,58 @@ void fetchThresholds() {
 
     Serial.println("📡 Fetching settings from backend...");
     http.begin(client, settings_url);
-    http.setTimeout(5000);
+    http.setTimeout(5000);  // Optional timeout for stability
+
     int httpCode = http.GET();
 
-    if (httpCode == 200) {
+    if (httpCode == HTTP_CODE_OK) {
         String response = http.getString();
-        StaticJsonDocument<256> jsonDoc;
-        deserializeJson(jsonDoc, response);
+        
+        // ✅ Check for empty response
+        if (response.length() == 0) {
+            Serial.println("❌ Empty response received from server!");
+            return;
+        }
 
-        JsonObject data = jsonDoc["data"];
-        speed1Threshold = data["speed1_threshold"];
-        speed2Threshold = data["speed2_threshold"];
-        speed3Threshold = data["speed3_threshold"];
-        distanceThreshold = data["distance_threshold"];
+        // ✅ Parse JSON response
+        StaticJsonDocument<512> jsonDoc;  // Increase size if necessary
+        DeserializationError error = deserializeJson(jsonDoc, response);
+        
+        if (error) {
+            Serial.print("❌ JSON Parsing Error: ");
+            Serial.println(error.f_str());
+            return;
+        }
 
-        arduinoSerial.println("SET_TEMP1:" + String(speed1Threshold));
-        arduinoSerial.println("SET_TEMP2:" + String(speed2Threshold));
-        arduinoSerial.println("SET_TEMP3:" + String(speed3Threshold));
-        arduinoSerial.println("SET_DIST:" + String(distanceThreshold));
+        // ✅ Check if "success" is true before proceeding
+        if (jsonDoc["success"] == true) {
+            JsonObject data = jsonDoc["settings"];
+            
+            // ✅ Extract thresholds
+            speed1Threshold = data["speed1_threshold"];
+            speed2Threshold = data["speed2_threshold"];
+            speed3Threshold = data["speed3_threshold"];
+            distanceThreshold = data["distance_threshold"];
+
+            // ✅ Send thresholds to Arduino (for communication with main system)
+            arduinoSerial.println("SET_TEMP1:" + String(speed1Threshold));
+            arduinoSerial.println("SET_TEMP2:" + String(speed2Threshold));
+            arduinoSerial.println("SET_TEMP3:" + String(speed3Threshold));
+            arduinoSerial.println("SET_DIST:" + String(distanceThreshold));
+
+            Serial.println("✅ Thresholds updated successfully!");
+        } else {
+            Serial.println("❌ API Response returned success = false. Skipping update.");
+        }
     } else {
+        // ❌ Handle HTTP request error
         Serial.println("❌ Failed to fetch settings! HTTP Code: " + String(httpCode));
     }
-    
+
     http.end();
 }
+
+
 
 // WiFi LED Status
 void updateLED() {
@@ -189,15 +197,11 @@ void setup() {
         Serial.println("\n❌ Failed to connect to WiFi! Check your credentials.");
     }
 
-    webSocket.begin(ws_host, ws_port, "/"); 
-    webSocket.onEvent(webSocketEvent);
-    
     fetchThresholds();
 }
 
 // Main Loop
 void loop() {
-    webSocket.loop();  // Keep WebSocket running
     readFromArduino(); // Read sensor data
     updateLED();       // Manage LED status
 
